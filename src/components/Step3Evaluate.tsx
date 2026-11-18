@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { Criterion, EvaluationResult, CriterionEvaluation } from '../types';
+import { apiUrl } from '../api';
 
 interface Step3EvaluateProps {
   criteria: Criterion[];
@@ -59,7 +60,7 @@ export const Step3Evaluate: React.FC<Step3EvaluateProps> = ({
     setEvalError(null);
 
     try {
-      const response = await fetch('/api/evaluate-design', {
+      const response = await fetch(apiUrl('/api/evaluate-design'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
