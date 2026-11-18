@@ -1,0 +1,6 @@
+{
+  "name": "NeuroDesign",
+  "description": "Evidence-based lighting design evaluator for interior designers using research criteria.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
