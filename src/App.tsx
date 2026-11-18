@@ -11,6 +11,7 @@ import { Step3Evaluate } from './components/Step3Evaluate';
 import { Criterion, EvaluationResult } from './types';
 import { RESEARCH_PRESETS } from './data/researchPresets';
 import { SAMPLE_PLANS } from './data/samplePlans';
+import { apiUrl } from './api';
 import { Sparkles, ShieldCheck } from 'lucide-react';
 
 export default function App() {
@@ -76,7 +77,7 @@ export default function App() {
   const [serverHealth, setServerHealth] = useState<{ hasApiKey: boolean } | null>(null);
 
   useEffect(() => {
-    fetch('/api/health')
+    fetch(apiUrl('/api/health'))
       .then((res) => res.json())
       .then((data) => setServerHealth(data))
       .catch((err) => console.warn('Server health check error:', err));

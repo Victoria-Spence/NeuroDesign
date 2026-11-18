@@ -16,6 +16,7 @@ import {
 import { Criterion } from '../types';
 import { RESEARCH_PRESETS } from '../data/researchPresets';
 import { CriterionEditModal } from './CriterionEditModal';
+import { apiUrl } from '../api';
 
 interface Step1ResearchProps {
   researchText: string;
@@ -62,7 +63,7 @@ export const Step1Research: React.FC<Step1ResearchProps> = ({
     setExtractError(null);
 
     try {
-      const response = await fetch('/api/extract-criteria', {
+      const response = await fetch(apiUrl('/api/extract-criteria'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ researchText }),

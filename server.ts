@@ -9,31 +9,64 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Parse port: prioritize CLI argument (--port 3000), default to 3000 for AI Studio dev server
+// Honor the hosting platform's port, while keeping the local dev default.
 function getPort(): number {
   const portArgIndex = process.argv.indexOf('--port');
   if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
-    return parseInt(process.argv[portArgIndex + 1], 10);
+    return parsePort(process.argv[portArgIndex + 1]);
   }
   const portEqualsArg = process.argv.find((arg) => arg.startsWith('--port='));
   if (portEqualsArg) {
-    return parseInt(portEqualsArg.split('=')[1], 10);
+    return parsePort(portEqualsArg.split('=')[1]);
   }
-  if (process.env.NODE_ENV !== 'production') {
-    return 3000;
+  return process.env.PORT
+    ? parsePort(process.env.PORT)
+    : process.env.NODE_ENV === 'production'
+      ? 8080
+      : 3000;
+}
+
+function parsePort(value: string): number {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid server port: ${value}`);
   }
-  if (process.env.PORT && process.env.PORT !== '8080') {
-    return parseInt(process.env.PORT, 10);
-  }
-  return 3000;
+  return port;
 }
 
 const app = express();
 const port = getPort();
 
-// Allow large image uploads (base64 lighting plans)
-app.use(express.json({ limit: '35mb' }));
-app.use(express.urlencoded({ extended: true, limit: '35mb' }));
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ?? 'https://victoria-spence.github.io,http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
+app.use((req: Request, res: Response, next) => {
+  const origin = req.get('Origin');
+  if (origin && !allowedOrigins.has(origin)) {
+    return res.status(403).json({ error: 'Origin not allowed.' });
+  }
+
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+// Keep JSON uploads below Cloud Run's HTTP request size limit.
+app.use(express.json({ limit: '30mb' }));
+app.use(express.urlencoded({ extended: true, limit: '30mb' }));
 
 // Helper to format raw Gemini API errors into human-readable interior designer explanations
 function formatGeminiError(error: any): string {
@@ -53,7 +86,7 @@ function formatGeminiError(error: any): string {
         } else if (parsed.error.code === 429 || parsed.error.status === 'RESOURCE_EXHAUSTED') {
           msg = `Free-Tier Quota Limit Reached: ${msg} Please wait a moment before sending another evaluation request.`;
         } else if (parsed.error.code === 403 || parsed.error.status === 'PERMISSION_DENIED') {
-          msg = `API Key Permission Denied: ${msg} Please verify your API key in the AI Studio Settings > Secrets panel.`;
+          msg = `API key permission denied: ${msg} Please verify the GEMINI_API_KEY secret configured for the server.`;
         }
         return msg;
       }
@@ -71,7 +104,7 @@ function formatGeminiError(error: any): string {
   }
 
   if (rawMessage.includes('403') || rawMessage.includes('PERMISSION_DENIED')) {
-    return 'Permission denied. Please verify your Gemini API key in the AI Studio Settings > Secrets panel.';
+    return 'Permission denied. Please verify the GEMINI_API_KEY secret configured for the server.';
   }
 
   return rawMessage;
@@ -85,7 +118,7 @@ async function generateWithFallback(params: {
 }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured in the server environment. Please set your key in AI Studio Settings > Secrets.');
+    throw new Error('GEMINI_API_KEY is not configured in the server environment.');
   }
 
   const ai = new GoogleGenAI({
@@ -161,7 +194,7 @@ app.post('/api/extract-criteria', async (req: Request, res: Response) => {
 
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
-        error: 'GEMINI_API_KEY is not configured in the server environment. Please check your secrets configuration in Settings > Secrets.',
+        error: 'GEMINI_API_KEY is not configured in the server environment.',
       });
     }
 
@@ -240,7 +273,7 @@ app.post('/api/evaluate-design', async (req: Request, res: Response) => {
 
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
-        error: 'GEMINI_API_KEY is not configured in the server environment. Please configure your key in Settings > Secrets.',
+        error: 'GEMINI_API_KEY is not configured in the server environment.',
       });
     }
 
